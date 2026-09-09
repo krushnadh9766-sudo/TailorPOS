@@ -4,36 +4,35 @@ import {colors} from '../theme/colors';
 import {typography} from '../theme/typography';
 import {spacing, borderRadius} from '../theme/spacing';
 import StatusBadge from './StatusBadge';
+import {formatCurrency} from '../data/mockData';
 
-const OrderCard = ({
-  orderNumber,
-  customer,
-  items,
-  amount,
-  dueAmount,
-  dueDate,
-  status,
-  onPress,
-}) => {
+const OrderCard = ({order, onPress}) => {
+  const itemsText = Array.isArray(order.items) 
+    ? order.items.map(i => `${i.type} × ${i.quantity}`).join(', ')
+    : order.items;
+
   return (
     <TouchableOpacity style={styles.container} onPress={onPress} activeOpacity={0.7}>
       <View style={styles.header}>
-        <Text style={styles.orderNumber}>{orderNumber}</Text>
-        <StatusBadge status={status} />
+        <Text style={styles.orderNumber}>{order.id || order.orderNumber}</Text>
+        <StatusBadge status={order.status} />
       </View>
       
-      <Text style={styles.customer}>{customer}</Text>
+      <Text style={styles.customer}>{order.customer}</Text>
       
-      <Text style={styles.items}>{items}</Text>
+      <Text style={styles.items}>{itemsText}</Text>
       
       <View style={styles.footer}>
         <View style={styles.amountSection}>
-          <Text style={styles.amount}>₦{amount.toLocaleString()}</Text>
-          {dueAmount && dueAmount > 0 && (
-            <Text style={styles.due}>₦{dueAmount.toLocaleString()} due</Text>
-          )}
+          <Text style={styles.amount}>{formatCurrency(order.total || order.amount)}</Text>
+          <View style={styles.paymentRow}>
+            <Text style={styles.paid}>Paid: {formatCurrency(order.paid)}</Text>
+            {order.balance > 0 && (
+              <Text style={styles.balance}>Bal: {formatCurrency(order.balance)}</Text>
+            )}
+          </View>
         </View>
-        <Text style={styles.dueDate}>Due {dueDate}</Text>
+        <Text style={styles.dueDate}>Due {order.dueDate}</Text>
       </View>
     </TouchableOpacity>
   );
@@ -74,7 +73,7 @@ const styles = StyleSheet.create({
   footer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-end',
     marginTop: spacing.xs,
   },
   amountSection: {
@@ -83,8 +82,18 @@ const styles = StyleSheet.create({
   amount: {
     ...typography.h4,
     color: colors.primary,
+    marginBottom: 4,
   },
-  due: {
+  paymentRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  paid: {
+    ...typography.caption,
+    color: colors.success,
+    fontWeight: '600',
+  },
+  balance: {
     ...typography.caption,
     color: colors.error,
     fontWeight: '600',

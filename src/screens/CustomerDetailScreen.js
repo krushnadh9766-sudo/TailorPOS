@@ -1,4 +1,4 @@
-import React, {useState} from 'react';
+import React, {useState, useContext} from 'react';
 import {
   View,
   Text,
@@ -12,42 +12,31 @@ import {useNavigation, useRoute} from '@react-navigation/native';
 import {colors} from '../theme/colors';
 import {typography} from '../theme/typography';
 import {spacing, borderRadius} from '../theme/spacing';
+import BottomNavigation from '../components/BottomNavigation';
+import {AppContext} from '../data/AppContext';
+import {formatCurrency} from '../data/mockData';
 
 const CustomerDetailScreen = () => {
   const navigation = useNavigation();
   const route = useRoute();
   const {customerId} = route.params;
+  const {customers, orders} = useContext(AppContext);
 
   const [activeTab, setActiveTab] = useState('orders');
 
-  const customer = {
-    id: customerId,
-    name: 'Rahul Sharma',
-    mobile: '9876543210',
-    orders: 8,
-    pending: 1200,
-  };
+  const customer = customers.find(c => c.id === customerId);
 
-  const orderHistory = [
-    {
-      id: '1',
-      orderNumber: 'TP-0041',
-      status: 'In Progress',
-      items: 'Shirt × 2, Pant × 1',
-      date: '28 Aug 2026',
-      amount: 2800,
-    },
-    {
-      id: '2',
-      orderNumber: 'TP-0036',
-      status: 'Delivered',
-      items: 'Shirt × 1',
-      date: '20 Aug 2026',
-      amount: 800,
-    },
-  ];
+  if (!customer) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <Text>Customer not found</Text>
+      </SafeAreaView>
+    );
+  }
 
-  const measurements = {
+  const customerOrders = orders.filter(o => o.customer === customer.name);
+
+  const measurements = customer.measurements || {
     chest: '39"',
     waist: '38"',
     shoulder: '39"',
@@ -75,6 +64,14 @@ const CustomerDetailScreen = () => {
     }
   };
 
+  const renderOrderItems = (items) => {
+    if (typeof items === 'string') return items;
+    if (Array.isArray(items)) {
+      return items.map(i => `${i.type || i.name} × ${i.quantity}`).join(', ');
+    }
+    return '';
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar backgroundColor={colors.primary} barStyle="light-content" />
@@ -97,7 +94,9 @@ const CustomerDetailScreen = () => {
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
-            <Text style={[styles.statValue, styles.pendingValue]}>₹{customer.pending}</Text>
+            <Text style={[styles.statValue, customer.due > 0 && styles.pendingValue]}>
+              {formatCurrency(customer.due || 0)}
+            </Text>
             <Text style={styles.statLabel}>PENDING</Text>
           </View>
         </View>
@@ -130,22 +129,25 @@ const CustomerDetailScreen = () => {
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {activeTab === 'orders' && (
           <>
-            {orderHistory.map((order) => (
+            {customerOrders.map((order) => (
               <TouchableOpacity
                 key={order.id}
                 style={styles.orderCard}
                 onPress={() => navigation.navigate('OrderDetail', {orderId: order.id})}>
                 <View style={styles.orderHeader}>
-                  <Text style={styles.orderNumber}>{order.orderNumber}</Text>
+                  <Text style={styles.orderNumber}>{order.id || order.orderNumber}</Text>
                   <Text style={[styles.orderStatus, {color: getStatusColor(order.status)}]}>
                     {order.status}
                   </Text>
                 </View>
-                <Text style={styles.orderItems}>{order.items}</Text>
-                <Text style={styles.orderDate}>{order.date}</Text>
-                <Text style={styles.orderAmount}>₹{order.amount}</Text>
+                <Text style={styles.orderItems}>{renderOrderItems(order.items)}</Text>
+                <Text style={styles.orderDate}>{order.orderDate || order.date}</Text>
+                <Text style={styles.orderAmount}>{formatCurrency(order.total || order.amount)}</Text>
               </TouchableOpacity>
             ))}
+            {customerOrders.length === 0 && (
+              <Text style={{textAlign: 'center', marginTop: 20}}>No orders found.</Text>
+            )}
           </>
         )}
 
@@ -182,37 +184,13 @@ const CustomerDetailScreen = () => {
         <TouchableOpacity 
           style={[styles.bottomAction, styles.newOrderAction]}
           onPress={() => navigation.navigate('NewOrder')}>
-          <Text style={styles.actionIcon}>+</Text>
-          <Text style={styles.actionLabel}>New Order</Text>
+          <Text style={[styles.actionIcon, {color: colors.surface}]}>+</Text>
+          <Text style={[styles.actionLabel, {color: colors.surface}]}>New Order</Text>
         </TouchableOpacity>
       </View>
 
-      <View style={styles.bottomNav}>
-        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('Dashboard')}>
-          <Text style={styles.navIcon}>🏠</Text>
-          <Text style={styles.navLabel}>Home</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('Orders')}>
-          <Text style={styles.navIcon}>📋</Text>
-          <Text style={styles.navLabel}>Orders</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.navItem, styles.navNew]} onPress={() => navigation.navigate('NewOrder')}>
-          <View style={styles.navNewButton}>
-            <Text style={styles.navNewIcon}>+</Text>
-          </View>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.navItem, styles.navActive]}>
-          <Text style={styles.navIcon}>👤</Text>
-          <Text style={[styles.navLabel, styles.navLabelActive]}>Customers</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('Settings')}>
-          <Text style={styles.navIcon}>⚙️</Text>
-          <Text style={styles.navLabel}>Settings</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem}>
-          <Text style={styles.navIcon}>✨</Text>
-          <Text style={styles.navLabel}>AI</Text>
-        </TouchableOpacity>
+      <View style={styles.bottomNavContainer}>
+        <BottomNavigation />
       </View>
     </SafeAreaView>
   );
@@ -452,59 +430,12 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colors.text,
   },
-  bottomNav: {
+  bottomNavContainer: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: colors.surface,
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    paddingVertical: spacing.sm,
-    paddingBottom: spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-  navItem: {
-    alignItems: 'center',
-    paddingHorizontal: spacing.xs,
-    paddingVertical: spacing.xs,
-  },
-  navIcon: {
-    fontSize: 22,
-  },
-  navLabel: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    marginTop: 2,
-    fontSize: 10,
-  },
-  navLabelActive: {
-    color: colors.primary,
-    fontWeight: '600',
-  },
-  navNew: {
-    marginTop: -20,
-  },
-  navNewButton: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: colors.primary,
-    shadowOffset: {width: 0, height: 4},
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  navNewIcon: {
-    fontSize: 32,
-    color: colors.surface,
-    fontWeight: '300',
-  },
+  }
 });
 
 export default CustomerDetailScreen;

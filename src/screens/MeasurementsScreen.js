@@ -1,4 +1,4 @@
-import React, {useState} from 'react';
+import React, {useState, useContext, useEffect} from 'react';
 import {
   View,
   Text,
@@ -8,16 +8,22 @@ import {
   SafeAreaView,
   StatusBar,
   TextInput,
+  Alert,
 } from 'react-native';
 import {useNavigation, useRoute} from '@react-navigation/native';
 import {colors} from '../theme/colors';
 import {typography} from '../theme/typography';
 import {spacing, borderRadius} from '../theme/spacing';
+import BottomNavigation from '../components/BottomNavigation';
+import {AppContext} from '../data/AppContext';
 
 const MeasurementsScreen = () => {
   const navigation = useNavigation();
   const route = useRoute();
   const {customerId} = route.params;
+  const {customers, updateCustomerMeasurements} = useContext(AppContext);
+
+  const customer = customers.find(c => c.id === customerId);
 
   const [activeGarment, setActiveGarment] = useState('Shirt');
   const [measurements, setMeasurements] = useState({
@@ -32,6 +38,12 @@ const MeasurementsScreen = () => {
     bottom: '36',
     inseam: '35',
   });
+
+  useEffect(() => {
+    if (customer && customer.measurements) {
+      setMeasurements(customer.measurements);
+    }
+  }, [customer]);
 
   const garmentTypes = ['Shirt', 'Pant', 'Kurta', 'Blouse', 'Suit', 'Other'];
 
@@ -68,8 +80,19 @@ const MeasurementsScreen = () => {
   };
 
   const handleSave = () => {
-    navigation.goBack();
+    updateCustomerMeasurements(customerId, measurements);
+    Alert.alert('Success', 'Measurements saved successfully', [
+      {text: 'OK', onPress: () => navigation.goBack()}
+    ]);
   };
+
+  if (!customer) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <Text>Customer not found</Text>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -81,7 +104,7 @@ const MeasurementsScreen = () => {
         </TouchableOpacity>
         <View>
           <Text style={styles.headerTitle}>Measurements</Text>
-          <Text style={styles.headerSubtitle}>Rahul Sharma</Text>
+          <Text style={styles.headerSubtitle}>{customer.name}</Text>
         </View>
         <View style={styles.headerRight} />
       </View>
@@ -114,14 +137,14 @@ const MeasurementsScreen = () => {
             <View style={styles.measurementInputs}>
               <TextInput
                 style={styles.measurementInput}
-                value={measurements[field.key]}
+                value={String(measurements[field.key])}
                 onChangeText={(text) => updateMeasurement(field.key, text)}
                 keyboardType="numeric"
                 maxLength={5}
               />
               <Text style={styles.measurementRange}>
-                {parseInt(measurements[field.key]) - 5} in{' '}
-                {parseInt(measurements[field.key]) + 5} in
+                {parseInt(measurements[field.key]) ? parseInt(measurements[field.key]) - 5 : 0} in{' '}
+                {parseInt(measurements[field.key]) ? parseInt(measurements[field.key]) + 5 : 0} in
               </Text>
             </View>
           </View>
@@ -137,32 +160,8 @@ const MeasurementsScreen = () => {
         </View>
       </ScrollView>
 
-      <View style={styles.bottomNav}>
-        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('Dashboard')}>
-          <Text style={styles.navIcon}>🏠</Text>
-          <Text style={styles.navLabel}>Home</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('Orders')}>
-          <Text style={styles.navIcon}>📋</Text>
-          <Text style={styles.navLabel}>Orders</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.navItem, styles.navNew]} onPress={() => navigation.navigate('NewOrder')}>
-          <View style={styles.navNewButton}>
-            <Text style={styles.navNewIcon}>+</Text>
-          </View>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.navItem, styles.navActive]}>
-          <Text style={styles.navIcon}>👤</Text>
-          <Text style={[styles.navLabel, styles.navLabelActive]}>Customers</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('Settings')}>
-          <Text style={styles.navIcon}>⚙️</Text>
-          <Text style={styles.navLabel}>Settings</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem}>
-          <Text style={styles.navIcon}>✨</Text>
-          <Text style={styles.navLabel}>AI</Text>
-        </TouchableOpacity>
+      <View style={styles.bottomNavContainer}>
+        <BottomNavigation />
       </View>
     </SafeAreaView>
   );
@@ -205,6 +204,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
+    flexGrow: 0,
   },
   garmentTabsContent: {
     paddingHorizontal: spacing.lg,
@@ -232,7 +232,6 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
-    paddingBottom: 100,
   },
   measurementRow: {
     backgroundColor: colors.surface,
@@ -298,59 +297,12 @@ const styles = StyleSheet.create({
     ...typography.bodyBold,
     color: colors.surface,
   },
-  bottomNav: {
+  bottomNavContainer: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: colors.surface,
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    paddingVertical: spacing.sm,
-    paddingBottom: spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-  navItem: {
-    alignItems: 'center',
-    paddingHorizontal: spacing.xs,
-    paddingVertical: spacing.xs,
-  },
-  navIcon: {
-    fontSize: 22,
-  },
-  navLabel: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    marginTop: 2,
-    fontSize: 10,
-  },
-  navLabelActive: {
-    color: colors.primary,
-    fontWeight: '600',
-  },
-  navNew: {
-    marginTop: -20,
-  },
-  navNewButton: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: colors.primary,
-    shadowOffset: {width: 0, height: 4},
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  navNewIcon: {
-    fontSize: 32,
-    color: colors.surface,
-    fontWeight: '300',
-  },
+  }
 });
 
 export default MeasurementsScreen;

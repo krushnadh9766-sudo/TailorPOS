@@ -1,4 +1,4 @@
-import React, {useState} from 'react';
+import React, {useState, useContext} from 'react';
 import {
   View,
   Text,
@@ -8,14 +8,19 @@ import {
   SafeAreaView,
   StatusBar,
   TextInput,
+  Alert,
 } from 'react-native';
 import {useNavigation} from '@react-navigation/native';
 import {colors} from '../theme/colors';
 import {typography} from '../theme/typography';
 import {spacing, borderRadius} from '../theme/spacing';
+import BottomNavigation from '../components/BottomNavigation';
+import {AppContext} from '../data/AppContext';
+import {getCurrentDateFormatted, formatCurrency} from '../data/mockData';
 
 const NewOrderScreen = () => {
   const navigation = useNavigation();
+  const {customers, addOrder, orders} = useContext(AppContext);
   const [step, setStep] = useState(1);
 
   // Step 1: Customer
@@ -37,12 +42,6 @@ const NewOrderScreen = () => {
     discount: 0,
     total: 0,
   });
-
-  const customers = [
-    {id: '1', name: 'Rahul Sharma', mobile: '9876543210'},
-    {id: '2', name: 'Priya Menon', mobile: '9845012345'},
-    {id: '3', name: 'Arun Kumar', mobile: '9900112233'},
-  ];
 
   const garmentTypes = ['Shirt', 'Pant', 'Kurta', 'Blouse', 'Suit', 'Other'];
 
@@ -76,6 +75,46 @@ const NewOrderScreen = () => {
     if (step > 1) setStep(step - 1);
   };
 
+  const recalculateTotal = (extra, disc) => {
+    const e = parseInt(extra) || 0;
+    const d = parseInt(disc) || 0;
+    setSummary(prev => ({
+      ...prev,
+      extraCharges: e,
+      discount: d,
+      total: prev.subtotal + e - d
+    }));
+  };
+
+  const handleSave = (print) => {
+    const newId = `TP-00${41 + orders.length}`;
+    
+    const newOrder = {
+      id: newId,
+      customer: selectedCustomer.name,
+      customerMobile: selectedCustomer.mobile,
+      items: garments,
+      total: summary.total,
+      paid: 0,
+      balance: summary.total,
+      dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString('en-IN', {day: 'numeric', month: 'short', year: 'numeric'}),
+      orderDate: new Date().toLocaleDateString('en-IN', {day: 'numeric', month: 'short', year: 'numeric'}),
+      status: 'Pending'
+    };
+    
+    addOrder(newOrder);
+    
+    if (print) {
+      Alert.alert('Success', 'Order saved and preparing receipt...', [
+        {text: 'OK', onPress: () => navigation.navigate('Receipt', {orderId: newId})}
+      ]);
+    } else {
+      Alert.alert('Success', 'Order saved successfully', [
+        {text: 'OK', onPress: () => navigation.navigate('Orders')}
+      ]);
+    }
+  };
+
   const renderStep1 = () => (
     <>
       <Text style={styles.stepTitle}>1. Customer</Text>
@@ -89,7 +128,7 @@ const NewOrderScreen = () => {
           onChangeText={setSearchQuery}
         />
       </View>
-      <TouchableOpacity style={styles.addCustomerButton}>
+      <TouchableOpacity style={styles.addCustomerButton} onPress={() => navigation.navigate('Customers')}>
         <Text style={styles.addCustomerText}>+ Add New Customer</Text>
       </TouchableOpacity>
       <ScrollView style={styles.customerList}>
@@ -153,7 +192,7 @@ const NewOrderScreen = () => {
             value={currentGarment.price}
             onChangeText={(text) => setCurrentGarment({...currentGarment, price: text})}
             keyboardType="numeric"
-            placeholder="Enter price"
+            placeholder="Enter price per unit"
             placeholderTextColor={colors.textLight}
           />
         </View>
@@ -166,7 +205,7 @@ const NewOrderScreen = () => {
           <View key={index} style={styles.garmentItem}>
             <View>
               <Text style={styles.garmentItemName}>{g.type} × {g.quantity}</Text>
-              <Text style={styles.garmentItemPrice}>₹{g.amount}</Text>
+              <Text style={styles.garmentItemPrice}>{formatCurrency(g.amount)}</Text>
             </View>
             <TouchableOpacity onPress={() => setGarments(garments.filter((_, i) => i !== index))}>
               <Text style={styles.removeGarment}>✕</Text>
@@ -184,14 +223,14 @@ const NewOrderScreen = () => {
         <Text style={styles.summaryCustomer}>{selectedCustomer?.name}</Text>
         <View style={styles.summaryRow}>
           <Text style={styles.summaryLabel}>Subtotal</Text>
-          <Text style={styles.summaryValue}>₹{summary.subtotal}</Text>
+          <Text style={styles.summaryValue}>{formatCurrency(summary.subtotal)}</Text>
         </View>
         <View style={styles.summaryRow}>
           <Text style={styles.summaryLabel}>Extra Charges</Text>
           <TextInput
             style={styles.summaryInput}
             value={String(summary.extraCharges)}
-            onChangeText={(text) => setSummary({...summary, extraCharges: parseInt(text) || 0})}
+            onChangeText={(text) => recalculateTotal(text, summary.discount)}
             keyboardType="numeric"
           />
         </View>
@@ -200,20 +239,20 @@ const NewOrderScreen = () => {
           <TextInput
             style={styles.summaryInput}
             value={String(summary.discount)}
-            onChangeText={(text) => setSummary({...summary, discount: parseInt(text) || 0})}
+            onChangeText={(text) => recalculateTotal(summary.extraCharges, text)}
             keyboardType="numeric"
           />
         </View>
         <View style={[styles.summaryRow, styles.summaryTotal]}>
           <Text style={styles.summaryLabel}>Total</Text>
-          <Text style={styles.summaryTotalValue}>₹{summary.total}</Text>
+          <Text style={styles.summaryTotalValue}>{formatCurrency(summary.total)}</Text>
         </View>
       </View>
       <View style={styles.actionButtons}>
-        <TouchableOpacity style={[styles.actionButton, styles.saveButton]}>
+        <TouchableOpacity style={[styles.actionButton, styles.saveButton]} onPress={() => handleSave(false)}>
           <Text style={styles.saveButtonText}>Save Order</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.actionButton, styles.savePrintButton]}>
+        <TouchableOpacity style={[styles.actionButton, styles.savePrintButton]} onPress={() => handleSave(true)}>
           <Text style={styles.savePrintButtonText}>Save & Print</Text>
         </TouchableOpacity>
       </View>
@@ -230,7 +269,7 @@ const NewOrderScreen = () => {
         </TouchableOpacity>
         <View>
           <Text style={styles.headerTitle}>New Order</Text>
-          <Text style={styles.headerSubtitle}>TP-0042 · 2 Sep 2026</Text>
+          <Text style={styles.headerSubtitle}>New · {getCurrentDateFormatted()}</Text>
         </View>
         <View style={styles.headerRight} />
       </View>
@@ -264,48 +303,28 @@ const NewOrderScreen = () => {
       </ScrollView>
 
       <View style={styles.navigationButtons}>
-        {step > 1 && (
+        {step > 1 ? (
           <TouchableOpacity style={[styles.navButton, styles.prevButton]} onPress={prevStep}>
             <Text style={styles.prevButtonText}>← Back</Text>
           </TouchableOpacity>
+        ) : (
+          <View style={[styles.navButton, {backgroundColor: 'transparent'}]} />
         )}
+        
         {step < 3 && (
           <TouchableOpacity
-            style={[styles.navButton, styles.nextButton]}
-            onPress={nextStep}>
+            style={[styles.navButton, styles.nextButton, (!selectedCustomer && step === 1) || (garments.length === 0 && step === 2) ? styles.disabledButton : null]}
+            onPress={nextStep}
+            disabled={(step === 1 && !selectedCustomer) || (step === 2 && garments.length === 0)}>
             <Text style={styles.nextButtonText}>
-              {step === 1 ? 'Next →' : 'Next →'}
+              Next →
             </Text>
           </TouchableOpacity>
         )}
       </View>
 
-      <View style={styles.bottomNav}>
-        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('Dashboard')}>
-          <Text style={styles.navIcon}>🏠</Text>
-          <Text style={styles.navLabel}>Home</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('Orders')}>
-          <Text style={styles.navIcon}>📋</Text>
-          <Text style={styles.navLabel}>Orders</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.navItem, styles.navNew]}>
-          <View style={styles.navNewButton}>
-            <Text style={styles.navNewIcon}>+</Text>
-          </View>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('Customers')}>
-          <Text style={styles.navIcon}>👤</Text>
-          <Text style={styles.navLabel}>Customers</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('Settings')}>
-          <Text style={styles.navIcon}>⚙️</Text>
-          <Text style={styles.navLabel}>Settings</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem}>
-          <Text style={styles.navIcon}>✨</Text>
-          <Text style={styles.navLabel}>AI</Text>
-        </TouchableOpacity>
+      <View style={styles.bottomNavContainer}>
+        <BottomNavigation />
       </View>
     </SafeAreaView>
   );
@@ -396,7 +415,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
-    paddingBottom: 100,
+    paddingBottom: 20,
   },
   stepTitle: {
     ...typography.h4,
@@ -623,11 +642,14 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderTopWidth: 1,
     borderTopColor: colors.border,
+    marginBottom: 60,
   },
   navButton: {
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.xl,
     borderRadius: borderRadius.md,
+    minWidth: 100,
+    alignItems: 'center',
   },
   prevButton: {
     backgroundColor: colors.border,
@@ -644,55 +666,15 @@ const styles = StyleSheet.create({
     color: colors.surface,
     fontWeight: '600',
   },
-  bottomNav: {
+  disabledButton: {
+    opacity: 0.5,
+  },
+  bottomNavContainer: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: colors.surface,
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    paddingVertical: spacing.sm,
-    paddingBottom: spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-  navItem: {
-    alignItems: 'center',
-    paddingHorizontal: spacing.xs,
-    paddingVertical: spacing.xs,
-  },
-  navIcon: {
-    fontSize: 22,
-  },
-  navLabel: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    marginTop: 2,
-    fontSize: 10,
-  },
-  navNew: {
-    marginTop: -20,
-  },
-  navNewButton: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: colors.primary,
-    shadowOffset: {width: 0, height: 4},
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  navNewIcon: {
-    fontSize: 32,
-    color: colors.surface,
-    fontWeight: '300',
-  },
+  }
 });
 
 export default NewOrderScreen;

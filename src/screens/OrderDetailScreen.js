@@ -1,4 +1,4 @@
-import React from 'react';
+import React, {useContext} from 'react';
 import {
   View,
   Text,
@@ -7,32 +7,32 @@ import {
   TouchableOpacity,
   SafeAreaView,
   StatusBar,
+  Alert,
 } from 'react-native';
 import {useNavigation, useRoute} from '@react-navigation/native';
 import {colors} from '../theme/colors';
 import {typography} from '../theme/typography';
 import {spacing, borderRadius} from '../theme/spacing';
+import BottomNavigation from '../components/BottomNavigation';
+import {AppContext} from '../data/AppContext';
+import {formatCurrency} from '../data/mockData';
 
 const OrderDetailScreen = () => {
   const navigation = useNavigation();
   const route = useRoute();
-  const {orderId} = route.params;
+  const {orders, updateOrderStatus} = useContext(AppContext);
+  
+  const paramOrder = route.params?.order;
+  const orderId = paramOrder?.id || route.params?.orderId;
+  const order = orders.find((o) => o.id === orderId) || paramOrder;
 
-  const order = {
-    id: orderId,
-    orderNumber: 'TP-0041',
-    status: 'In Progress',
-    customer: 'Rahul Sharma',
-    orderDate: '28 Aug 2026',
-    deliveryDate: '5 Sep 2026',
-    garments: [
-      {name: 'Shirt × 2', price: 1400},
-      {name: 'Pant × 1', price: 1400},
-    ],
-    total: 2800,
-    paid: 1600,
-    balance: 1200,
-  };
+  if (!order) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <Text>Order not found</Text>
+      </SafeAreaView>
+    );
+  }
 
   const getStatusColor = () => {
     switch (order.status) {
@@ -64,6 +64,11 @@ const OrderDetailScreen = () => {
     }
   };
 
+  const handleMarkReady = () => {
+    updateOrderStatus(order.id, 'Ready');
+  };
+
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar backgroundColor={colors.primary} barStyle="light-content" />
@@ -72,7 +77,7 @@ const OrderDetailScreen = () => {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <Text style={styles.backIcon}>‹</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>{order.orderNumber}</Text>
+        <Text style={styles.headerTitle}>{order.id || order.orderNumber}</Text>
         <View style={styles.headerRight} />
       </View>
 
@@ -89,84 +94,71 @@ const OrderDetailScreen = () => {
             <Text style={styles.infoValue}>{order.customer}</Text>
           </View>
           <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>MOBILE</Text>
+            <Text style={styles.infoValue}>{order.customerMobile}</Text>
+          </View>
+          <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>ORDER DATE</Text>
             <Text style={styles.infoValue}>{order.orderDate}</Text>
           </View>
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>DELIVERY</Text>
-            <Text style={styles.infoValue}>{order.deliveryDate}</Text>
+            <Text style={styles.infoValue}>{order.dueDate || order.deliveryDate}</Text>
           </View>
         </View>
 
         <View style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>GARMENTS</Text>
-          {order.garments.map((item, index) => (
+          {Array.isArray(order.items) ? order.items.map((item, index) => (
             <View key={index} style={styles.garmentRow}>
-              <Text style={styles.garmentName}>{item.name}</Text>
-              <Text style={styles.garmentPrice}>₹{item.price}</Text>
+              <Text style={styles.garmentName}>{item.type} × {item.quantity}</Text>
+              <Text style={styles.garmentPrice}>{formatCurrency(item.price * item.quantity)}</Text>
             </View>
-          ))}
+          )) : (
+            <View style={styles.garmentRow}>
+              <Text style={styles.garmentName}>{order.items}</Text>
+            </View>
+          )}
         </View>
 
         <View style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>PAYMENT</Text>
           <View style={styles.paymentRow}>
             <Text style={styles.paymentLabel}>Total</Text>
-            <Text style={styles.paymentValue}>₹{order.total}</Text>
+            <Text style={styles.paymentValue}>{formatCurrency(order.total || order.amount)}</Text>
           </View>
           <View style={styles.paymentRow}>
             <Text style={styles.paymentLabel}>Paid</Text>
-            <Text style={[styles.paymentValue, styles.paidValue]}>₹{order.paid}</Text>
+            <Text style={[styles.paymentValue, styles.paidValue]}>{formatCurrency(order.paid)}</Text>
           </View>
           <View style={styles.paymentRow}>
             <Text style={styles.paymentLabel}>Balance</Text>
-            <Text style={[styles.paymentValue, styles.balanceValue]}>₹{order.balance}</Text>
+            <Text style={[styles.paymentValue, styles.balanceValue]}>{formatCurrency(order.balance)}</Text>
           </View>
         </View>
 
         <View style={styles.actionButtons}>
-          {order.status !== 'Delivered' && (
-            <TouchableOpacity style={[styles.actionButton, styles.primaryButton]}>
+          {order.status !== 'Ready' && order.status !== 'Delivered' && (
+            <TouchableOpacity style={[styles.actionButton, styles.primaryButton]} onPress={handleMarkReady}>
               <Text style={styles.primaryButtonText}>Mark Ready</Text>
             </TouchableOpacity>
           )}
           <TouchableOpacity 
             style={[styles.actionButton, styles.secondaryButton]}
-            onPress={() => navigation.navigate('Payment', {orderId: order.id})}>
+            onPress={() => navigation.navigate('Payment', {order})}>
             <Text style={styles.secondaryButtonText}>Add Payment</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.actionButton, styles.outlineButton]}>
+          <TouchableOpacity 
+            style={[styles.actionButton, styles.outlineButton]} 
+            onPress={() => navigation.navigate('Receipt', {orderId: order.id})}>
             <Text style={styles.outlineButtonText}>Print</Text>
           </TouchableOpacity>
         </View>
+        <View style={{height: 100}} />
       </ScrollView>
 
-      <View style={styles.bottomNav}>
-        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('Dashboard')}>
-          <Text style={styles.navIcon}>🏠</Text>
-          <Text style={styles.navLabel}>Home</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.navItem, styles.navActive]} onPress={() => navigation.navigate('Orders')}>
-          <Text style={styles.navIcon}>📋</Text>
-          <Text style={[styles.navLabel, styles.navLabelActive]}>Orders</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.navItem, styles.navNew]} onPress={() => navigation.navigate('NewOrder')}>
-          <View style={styles.navNewButton}>
-            <Text style={styles.navNewIcon}>+</Text>
-          </View>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('Customers')}>
-          <Text style={styles.navIcon}>👤</Text>
-          <Text style={styles.navLabel}>Customers</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('Settings')}>
-          <Text style={styles.navIcon}>⚙️</Text>
-          <Text style={styles.navLabel}>Settings</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem}>
-          <Text style={styles.navIcon}>✨</Text>
-          <Text style={styles.navLabel}>AI</Text>
-        </TouchableOpacity>
+      <View style={styles.bottomNavContainer}>
+        <BottomNavigation />
       </View>
     </SafeAreaView>
   );
@@ -204,7 +196,6 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
-    paddingBottom: 100,
   },
   statusCard: {
     padding: spacing.md,
@@ -313,59 +304,12 @@ const styles = StyleSheet.create({
     ...typography.bodyBold,
     color: colors.text,
   },
-  bottomNav: {
+  bottomNavContainer: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: colors.surface,
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    paddingVertical: spacing.sm,
-    paddingBottom: spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-  navItem: {
-    alignItems: 'center',
-    paddingHorizontal: spacing.xs,
-    paddingVertical: spacing.xs,
-  },
-  navIcon: {
-    fontSize: 22,
-  },
-  navLabel: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    marginTop: 2,
-    fontSize: 10,
-  },
-  navLabelActive: {
-    color: colors.primary,
-    fontWeight: '600',
-  },
-  navNew: {
-    marginTop: -20,
-  },
-  navNewButton: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: colors.primary,
-    shadowOffset: {width: 0, height: 4},
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  navNewIcon: {
-    fontSize: 32,
-    color: colors.surface,
-    fontWeight: '300',
-  },
+  }
 });
 
 export default OrderDetailScreen;

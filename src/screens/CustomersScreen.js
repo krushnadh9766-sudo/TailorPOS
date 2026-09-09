@@ -1,4 +1,4 @@
-import React, {useState} from 'react';
+import React, {useState, useContext} from 'react';
 import {
   View,
   Text,
@@ -13,47 +13,13 @@ import {useNavigation} from '@react-navigation/native';
 import {colors} from '../theme/colors';
 import {typography} from '../theme/typography';
 import {spacing, borderRadius} from '../theme/spacing';
-
-const customers = [
-  {
-    id: '1',
-    name: 'Rahul Sharma',
-    mobile: '9876543210',
-    orders: 8,
-    due: 1200,
-  },
-  {
-    id: '2',
-    name: 'Priya Menon',
-    mobile: '9845012345',
-    orders: 14,
-    due: 0,
-  },
-  {
-    id: '3',
-    name: 'Arun Kumar',
-    mobile: '9900112233',
-    orders: 3,
-    due: 800,
-  },
-  {
-    id: '4',
-    name: 'Sunita Rao',
-    mobile: '9712345678',
-    orders: 22,
-    due: 2500,
-  },
-  {
-    id: '5',
-    name: 'Vijay Nair',
-    mobile: '9988776655',
-    orders: 5,
-    due: 0,
-  },
-];
+import BottomNavigation from '../components/BottomNavigation';
+import {AppContext} from '../data/AppContext';
+import {formatCurrency} from '../data/mockData';
 
 const CustomersScreen = () => {
   const navigation = useNavigation();
+  const {customers} = useContext(AppContext);
   const [searchQuery, setSearchQuery] = useState('');
 
   const filteredCustomers = customers.filter((c) =>
@@ -71,7 +37,7 @@ const CustomersScreen = () => {
         </TouchableOpacity>
         <View style={styles.headerCenter}>
           <Text style={styles.headerTitle}>Customers</Text>
-          <Text style={styles.customerCount}>{filteredCustomers.length} customers</Text>
+          <Text style={styles.customerCount}>{filteredCustomers.length} Customers</Text>
         </View>
         <TouchableOpacity style={styles.addButton}>
           <Text style={styles.addButtonText}>+ Add</Text>
@@ -102,41 +68,18 @@ const CustomersScreen = () => {
             <View style={styles.customerStats}>
               <Text style={styles.orderCount}>{customer.orders} orders</Text>
               {customer.due > 0 ? (
-                <Text style={styles.dueAmount}>₹{customer.due} due</Text>
+                <Text style={styles.dueAmount}>{formatCurrency(customer.due)} due</Text>
               ) : (
                 <Text style={styles.clearAmount}>Clear</Text>
               )}
             </View>
           </TouchableOpacity>
         ))}
+        <View style={{height: 100}} />
       </ScrollView>
 
-      <View style={styles.bottomNav}>
-        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('Dashboard')}>
-          <Text style={styles.navIcon}>🏠</Text>
-          <Text style={styles.navLabel}>Home</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('Orders')}>
-          <Text style={styles.navIcon}>📋</Text>
-          <Text style={styles.navLabel}>Orders</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.navItem, styles.navNew]} onPress={() => navigation.navigate('NewOrder')}>
-          <View style={styles.navNewButton}>
-            <Text style={styles.navNewIcon}>+</Text>
-          </View>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.navItem, styles.navActive]}>
-          <Text style={styles.navIcon}>👤</Text>
-          <Text style={[styles.navLabel, styles.navLabelActive]}>Customers</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('Settings')}>
-          <Text style={styles.navIcon}>⚙️</Text>
-          <Text style={styles.navLabel}>Settings</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem}>
-          <Text style={styles.navIcon}>✨</Text>
-          <Text style={styles.navLabel}>AI</Text>
-        </TouchableOpacity>
+      <View style={styles.bottomNavContainer}>
+        <BottomNavigation />
       </View>
     </SafeAreaView>
   );
@@ -255,55 +198,12 @@ const styles = StyleSheet.create({
     color: colors.success,
     fontWeight: '600',
   },
-  bottomNav: {
-    backgroundColor: colors.surface,
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    paddingVertical: spacing.sm,
-    paddingBottom: spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-  navItem: {
-    alignItems: 'center',
-    paddingHorizontal: spacing.xs,
-    paddingVertical: spacing.xs,
-  },
-  navIcon: {
-    fontSize: 22,
-  },
-  navLabel: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    marginTop: 2,
-    fontSize: 10,
-  },
-  navLabelActive: {
-    color: colors.primary,
-    fontWeight: '600',
-  },
-  navNew: {
-    marginTop: -20,
-  },
-  navNewButton: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: colors.primary,
-    shadowOffset: {width: 0, height: 4},
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  navNewIcon: {
-    fontSize: 32,
-    color: colors.surface,
-    fontWeight: '300',
-  },
+  bottomNavContainer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+  }
 });
 
 export default CustomersScreen;

@@ -1,4 +1,4 @@
-import React, {useState} from 'react';
+import React, {useState, useContext} from 'react';
 import {
   View,
   Text,
@@ -11,29 +11,35 @@ import {useNavigation, useRoute} from '@react-navigation/native';
 import {colors} from '../theme/colors';
 import {typography} from '../theme/typography';
 import {spacing, borderRadius} from '../theme/spacing';
+import BottomNavigation from '../components/BottomNavigation';
+import {AppContext} from '../data/AppContext';
+import {formatCurrency} from '../data/mockData';
 
 const PaymentScreen = () => {
   const navigation = useNavigation();
   const route = useRoute();
-  const {orderId} = route.params;
+  const {orders, addPayment} = useContext(AppContext);
+  
+  const paramOrder = route.params?.order;
+  const orderId = paramOrder?.id || route.params?.orderId;
+  const order = orders.find((o) => o.id === orderId) || paramOrder;
 
   const [amount, setAmount] = useState('0');
 
-  const order = {
-    id: orderId,
-    orderNumber: 'TP-0041',
-    customer: 'Rahul Sharma',
-    total: 2800,
-    paid: 1600,
-    balance: 1200,
-  };
+  if (!order) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <Text>Order not found</Text>
+      </SafeAreaView>
+    );
+  }
 
   const handleNumberPress = (num) => {
     if (num === 'clear') {
       setAmount('0');
       return;
     }
-    if (num === '1200') {
+    if (num === 'balance') {
       setAmount(String(order.balance));
       return;
     }
@@ -47,6 +53,7 @@ const PaymentScreen = () => {
   const handleReceivePayment = () => {
     const paymentAmount = parseFloat(amount);
     if (paymentAmount > 0 && paymentAmount <= order.balance) {
+      addPayment(order.id, paymentAmount);
       navigation.navigate('Receipt', {orderId: order.id});
     }
   };
@@ -55,7 +62,7 @@ const PaymentScreen = () => {
     ['1', '2', '3'],
     ['4', '5', '6'],
     ['7', '8', '9'],
-    ['.', '1200', 'clear'],
+    ['.', 'balance', 'clear'],
   ];
 
   return (
@@ -73,28 +80,28 @@ const PaymentScreen = () => {
       <View style={styles.content}>
         <View style={styles.orderInfo}>
           <Text style={styles.orderReference}>
-            {order.orderNumber} · {order.customer}
+            {order.id || order.orderNumber} · {order.customer}
           </Text>
         </View>
 
         <View style={styles.paymentSummary}>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>TOTAL</Text>
-            <Text style={styles.summaryValue}>₹{order.total}</Text>
+            <Text style={styles.summaryValue}>{formatCurrency(order.total || order.amount)}</Text>
           </View>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>PAID</Text>
-            <Text style={[styles.summaryValue, styles.paidValue]}>₹{order.paid}</Text>
+            <Text style={[styles.summaryValue, styles.paidValue]}>{formatCurrency(order.paid)}</Text>
           </View>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>BALANCE</Text>
-            <Text style={[styles.summaryValue, styles.balanceValue]}>₹{order.balance}</Text>
+            <Text style={[styles.summaryValue, styles.balanceValue]}>{formatCurrency(order.balance)}</Text>
           </View>
         </View>
 
         <View style={styles.amountSection}>
           <Text style={styles.amountLabel}>AMOUNT RECEIVING</Text>
-          <Text style={styles.amountDisplay}>₹{parseFloat(amount).toLocaleString()}</Text>
+          <Text style={styles.amountDisplay}>₹{parseFloat(amount || '0').toLocaleString('en-IN')}</Text>
         </View>
 
         <View style={styles.numpad}>
@@ -106,16 +113,16 @@ const PaymentScreen = () => {
                   style={[
                     styles.numpadButton,
                     key === 'clear' && styles.clearButton,
-                    key === '1200' && styles.suggestButton,
+                    key === 'balance' && styles.suggestButton,
                   ]}
                   onPress={() => handleNumberPress(key)}>
                   <Text
                     style={[
                       styles.numpadText,
                       key === 'clear' && styles.clearText,
-                      key === '1200' && styles.suggestText,
+                      key === 'balance' && styles.suggestText,
                     ]}>
-                    {key === 'clear' ? '✕' : key}
+                    {key === 'clear' ? '✕' : key === 'balance' ? 'Bal' : key}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -126,40 +133,16 @@ const PaymentScreen = () => {
         <TouchableOpacity
           style={[
             styles.receiveButton,
-            parseFloat(amount) === 0 && styles.receiveButtonDisabled,
+            (parseFloat(amount) === 0 || parseFloat(amount) > order.balance) && styles.receiveButtonDisabled,
           ]}
           onPress={handleReceivePayment}
-          disabled={parseFloat(amount) === 0}>
+          disabled={parseFloat(amount) === 0 || parseFloat(amount) > order.balance}>
           <Text style={styles.receiveButtonText}>Receive Payment ✓</Text>
         </TouchableOpacity>
       </View>
 
-      <View style={styles.bottomNav}>
-        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('Dashboard')}>
-          <Text style={styles.navIcon}>🏠</Text>
-          <Text style={styles.navLabel}>Home</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('Orders')}>
-          <Text style={styles.navIcon}>📋</Text>
-          <Text style={styles.navLabel}>Orders</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.navItem, styles.navNew]} onPress={() => navigation.navigate('NewOrder')}>
-          <View style={styles.navNewButton}>
-            <Text style={styles.navNewIcon}>+</Text>
-          </View>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('Customers')}>
-          <Text style={styles.navIcon}>👤</Text>
-          <Text style={styles.navLabel}>Customers</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('Settings')}>
-          <Text style={styles.navIcon}>⚙️</Text>
-          <Text style={styles.navLabel}>Settings</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem}>
-          <Text style={styles.navIcon}>✨</Text>
-          <Text style={styles.navLabel}>AI</Text>
-        </TouchableOpacity>
+      <View style={styles.bottomNavContainer}>
+        <BottomNavigation />
       </View>
     </SafeAreaView>
   );
@@ -197,7 +180,6 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
-    paddingBottom: 100,
   },
   orderInfo: {
     backgroundColor: colors.surface,
@@ -301,55 +283,12 @@ const styles = StyleSheet.create({
     color: colors.surface,
     fontWeight: '700',
   },
-  bottomNav: {
+  bottomNavContainer: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: colors.surface,
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    paddingVertical: spacing.sm,
-    paddingBottom: spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-  navItem: {
-    alignItems: 'center',
-    paddingHorizontal: spacing.xs,
-    paddingVertical: spacing.xs,
-  },
-  navIcon: {
-    fontSize: 22,
-  },
-  navLabel: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    marginTop: 2,
-    fontSize: 10,
-  },
-  navNew: {
-    marginTop: -20,
-  },
-  navNewButton: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: colors.primary,
-    shadowOffset: {width: 0, height: 4},
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  navNewIcon: {
-    fontSize: 32,
-    color: colors.surface,
-    fontWeight: '300',
-  },
+  }
 });
 
 export default PaymentScreen;

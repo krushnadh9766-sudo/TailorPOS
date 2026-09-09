@@ -1,4 +1,4 @@
-import React from 'react';
+import React, {useContext} from 'react';
 import {
   View,
   Text,
@@ -7,22 +7,33 @@ import {
   TouchableOpacity,
   SafeAreaView,
   StatusBar,
+  Alert,
+  Share,
 } from 'react-native';
 import {useNavigation, useRoute} from '@react-navigation/native';
 import {colors} from '../theme/colors';
 import {typography} from '../theme/typography';
 import {spacing, borderRadius} from '../theme/spacing';
+import {AppContext} from '../data/AppContext';
+import {formatCurrency, getCurrentDateFormatted} from '../data/mockData';
 
 const ReceiptScreen = () => {
   const navigation = useNavigation();
   const route = useRoute();
-  const {orderId} = route.params;
+  const {orders} = useContext(AppContext);
+  const {orderId} = route.params || {};
 
-  const receipt = {
+  const order = orders.find((o) => o.id === orderId);
+
+  // If order not found, use mock receipt data as requested
+  const mockReceipt = {
     receiptNumber: 'RCP-0041',
     date: '2 Sep 2026, 3:42 PM',
     customer: 'Rahul Sharma',
     order: 'TP-0041',
+    shopName: 'Tailor POS',
+    shopAddress: 'Rameevaram Tailor',
+    shopContact: '123 Main Street, Bangalore - 9876543210',
     items: [
       {name: 'Shirt x 2', price: 1400},
       {name: 'Pant x 1', price: 1400},
@@ -31,6 +42,54 @@ const ReceiptScreen = () => {
     paid: 1600,
     balance: 1200,
     method: 'Cash',
+    paymentDate: '2 Sep 2026',
+  };
+
+  const receipt = order ? {
+    receiptNumber: `RCP-${order.id.split('-')[1] || Math.floor(Math.random() * 1000)}`,
+    date: `${getCurrentDateFormatted()}, ${new Date().toLocaleTimeString('en-IN', {hour: '2-digit', minute: '2-digit'})}`,
+    customer: order.customer,
+    order: order.id,
+    shopName: 'Tailor POS',
+    shopAddress: 'Rameevaram Tailor',
+    shopContact: '123 Main Street, Bangalore - 9876543210',
+    items: Array.isArray(order.items) ? order.items.map(item => ({
+      name: `${item.type || item.name} x ${item.quantity}`,
+      price: item.price * item.quantity || item.amount || 0
+    })) : [{name: order.items, price: order.total}],
+    total: order.total || order.amount || 0,
+    paid: order.paid || 0,
+    balance: order.balance || 0,
+    method: 'Cash',
+    paymentDate: getCurrentDateFormatted(),
+  } : mockReceipt;
+
+  const handlePrint = () => {
+    Alert.alert('Printing', 'Sending to thermal printer...');
+  };
+
+  const handleShare = async () => {
+    try {
+      const receiptText = `
+Receipt from ${receipt.shopName}
+------------------------
+Order: ${receipt.order}
+Date: ${receipt.date}
+Customer: ${receipt.customer}
+------------------------
+Total: ${formatCurrency(receipt.total)}
+Paid: ${formatCurrency(receipt.paid)}
+Balance: ${formatCurrency(receipt.balance)}
+------------------------
+Thank you!
+      `;
+      
+      await Share.share({
+        message: receiptText,
+      });
+    } catch (error) {
+      Alert.alert('Error', 'Could not share receipt');
+    }
   };
 
   return (
@@ -46,105 +105,80 @@ const ReceiptScreen = () => {
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.receiptCard}>
-          <Text style={styles.shopName}>Tailor POS</Text>
-          <Text style={styles.shopInfo}>Rameevaram Tailor</Text>
-          <Text style={styles.shopInfo}>123 Main Street, Bangalore - 9876543210</Text>
+        <View style={styles.receiptWrapper}>
+          <View style={styles.receiptCard}>
+            <Text style={styles.shopName}>{receipt.shopName}</Text>
+            <Text style={styles.shopInfo}>{receipt.shopAddress}</Text>
+            <Text style={styles.shopInfo}>{receipt.shopContact}</Text>
 
-          <View style={styles.divider} />
+            <View style={styles.dashedDivider} />
 
-          <View style={styles.receiptRow}>
-            <Text style={styles.receiptLabel}>Receipt #</Text>
-            <Text style={styles.receiptValue}>{receipt.receiptNumber}</Text>
-          </View>
-          <View style={styles.receiptRow}>
-            <Text style={styles.receiptLabel}>Date</Text>
-            <Text style={styles.receiptValue}>{receipt.date}</Text>
-          </View>
-          <View style={styles.receiptRow}>
-            <Text style={styles.receiptLabel}>Customer</Text>
-            <Text style={styles.receiptValue}>{receipt.customer}</Text>
-          </View>
-          <View style={styles.receiptRow}>
-            <Text style={styles.receiptLabel}>Order</Text>
-            <Text style={styles.receiptValue}>{receipt.order}</Text>
-          </View>
-
-          <View style={styles.divider} />
-
-          {receipt.items.map((item, index) => (
-            <View key={index} style={styles.itemRow}>
-              <Text style={styles.itemName}>{item.name}</Text>
-              <Text style={styles.itemPrice}>₹{item.price}</Text>
+            <View style={styles.receiptRow}>
+              <Text style={styles.receiptLabel}>Receipt #</Text>
+              <Text style={styles.receiptValue}>{receipt.receiptNumber}</Text>
             </View>
-          ))}
+            <View style={styles.receiptRow}>
+              <Text style={styles.receiptLabel}>Date</Text>
+              <Text style={styles.receiptValue}>{receipt.date}</Text>
+            </View>
+            <View style={styles.receiptRow}>
+              <Text style={styles.receiptLabel}>Customer</Text>
+              <Text style={styles.receiptValue}>{receipt.customer}</Text>
+            </View>
+            <View style={styles.receiptRow}>
+              <Text style={styles.receiptLabel}>Order</Text>
+              <Text style={styles.receiptValue}>{receipt.order}</Text>
+            </View>
 
-          <View style={styles.divider} />
+            <View style={styles.dashedDivider} />
 
-          <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Total</Text>
-            <Text style={styles.totalValue}>₹{receipt.total}</Text>
-          </View>
-          <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Paid</Text>
-            <Text style={[styles.totalValue, styles.paidValue]}>₹{receipt.paid}</Text>
-          </View>
-          <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Balance</Text>
-            <Text style={[styles.totalValue, styles.balanceValue]}>₹{receipt.balance}</Text>
-          </View>
-          <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Method</Text>
-            <Text style={styles.totalValue}>{receipt.method}</Text>
-          </View>
+            {receipt.items.map((item, index) => (
+              <View key={index} style={styles.itemRow}>
+                <Text style={styles.itemName}>{item.name}</Text>
+                <Text style={styles.itemPrice}>{formatCurrency(item.price)}</Text>
+              </View>
+            ))}
 
-          <View style={styles.divider} />
+            <View style={styles.dashedDivider} />
 
-          <Text style={styles.thankYou}>Thank you for choosing us! 👏</Text>
+            <View style={styles.totalRow}>
+              <Text style={styles.totalLabel}>Total</Text>
+              <Text style={styles.totalValue}>{formatCurrency(receipt.total)}</Text>
+            </View>
+            <View style={styles.totalRow}>
+              <Text style={styles.totalLabel}>Paid</Text>
+              <Text style={[styles.totalValue, styles.paidValue]}>{formatCurrency(receipt.paid)}</Text>
+            </View>
+            <View style={styles.totalRow}>
+              <Text style={styles.totalLabel}>Balance</Text>
+              <Text style={[styles.totalValue, styles.balanceValue]}>{formatCurrency(receipt.balance)}</Text>
+            </View>
+            <View style={styles.totalRow}>
+              <Text style={styles.totalLabel}>Method</Text>
+              <Text style={styles.totalValue}>{receipt.method}</Text>
+            </View>
+
+            <View style={styles.dashedDivider} />
+
+            <Text style={styles.thankYou}>Thank you for choosing us! 👏</Text>
+          </View>
         </View>
 
         <View style={styles.actionButtons}>
-          <TouchableOpacity style={[styles.actionButton, styles.primaryButton]}>
-            <Text style={styles.primaryButtonText}>Print</Text>
+          <TouchableOpacity style={[styles.actionButton, styles.primaryButton]} onPress={handlePrint}>
+            <Text style={styles.primaryButtonText}>🖨️ Print</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.actionButton, styles.secondaryButton]}>
-            <Text style={styles.secondaryButtonText}>Share</Text>
+          <TouchableOpacity style={[styles.actionButton, styles.secondaryButton]} onPress={handleShare}>
+            <Text style={styles.secondaryButtonText}>📤 Share</Text>
           </TouchableOpacity>
           <TouchableOpacity 
             style={[styles.actionButton, styles.outlineButton]}
             onPress={() => navigation.navigate('Dashboard')}>
-            <Text style={styles.outlineButtonText}>Done</Text>
+            <Text style={styles.outlineButtonText}>✓ Done</Text>
           </TouchableOpacity>
         </View>
+        <View style={{height: 20}} />
       </ScrollView>
-
-      <View style={styles.bottomNav}>
-        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('Dashboard')}>
-          <Text style={styles.navIcon}>🏠</Text>
-          <Text style={styles.navLabel}>Home</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('Orders')}>
-          <Text style={styles.navIcon}>📋</Text>
-          <Text style={styles.navLabel}>Orders</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.navItem, styles.navNew]} onPress={() => navigation.navigate('NewOrder')}>
-          <View style={styles.navNewButton}>
-            <Text style={styles.navNewIcon}>+</Text>
-          </View>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('Customers')}>
-          <Text style={styles.navIcon}>👤</Text>
-          <Text style={styles.navLabel}>Customers</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('Settings')}>
-          <Text style={styles.navIcon}>⚙️</Text>
-          <Text style={styles.navLabel}>Settings</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem}>
-          <Text style={styles.navIcon}>✨</Text>
-          <Text style={styles.navLabel}>AI</Text>
-        </TouchableOpacity>
-      </View>
     </SafeAreaView>
   );
 };
@@ -181,33 +215,41 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
-    paddingBottom: 100,
+  },
+  receiptWrapper: {
+    backgroundColor: '#fff',
+    borderRadius: borderRadius.md,
+    marginBottom: spacing.xl,
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 4},
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
   },
   receiptCard: {
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.md,
     padding: spacing.xl,
-    marginBottom: spacing.md,
-    shadowColor: colors.cardShadow,
-    shadowOffset: {width: 0, height: 2},
-    shadowOpacity: 1,
-    shadowRadius: 8,
-    elevation: 2,
+    backgroundColor: '#fff',
   },
   shopName: {
     ...typography.h2,
-    color: colors.primary,
+    color: '#111827',
     textAlign: 'center',
     marginBottom: spacing.xs,
+    fontWeight: 'bold',
   },
   shopInfo: {
     ...typography.bodySmall,
-    color: colors.textSecondary,
+    color: '#4B5563',
     textAlign: 'center',
+    marginBottom: 2,
   },
-  divider: {
+  dashedDivider: {
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: '#9CA3AF',
+    borderStyle: 'dashed',
     marginVertical: spacing.md,
   },
   receiptRow: {
@@ -217,12 +259,12 @@ const styles = StyleSheet.create({
   },
   receiptLabel: {
     ...typography.bodySmall,
-    color: colors.textSecondary,
+    color: '#4B5563',
   },
   receiptValue: {
     ...typography.bodySmall,
-    color: colors.text,
-    fontWeight: '500',
+    color: '#111827',
+    fontWeight: '600',
   },
   itemRow: {
     flexDirection: 'row',
@@ -231,12 +273,12 @@ const styles = StyleSheet.create({
   },
   itemName: {
     ...typography.body,
-    color: colors.text,
+    color: '#111827',
   },
   itemPrice: {
     ...typography.body,
-    color: colors.text,
-    fontWeight: '500',
+    color: '#111827',
+    fontWeight: '600',
   },
   totalRow: {
     flexDirection: 'row',
@@ -245,11 +287,11 @@ const styles = StyleSheet.create({
   },
   totalLabel: {
     ...typography.bodyBold,
-    color: colors.textSecondary,
+    color: '#374151',
   },
   totalValue: {
     ...typography.bodyBold,
-    color: colors.text,
+    color: '#111827',
   },
   paidValue: {
     color: colors.success,
@@ -259,9 +301,10 @@ const styles = StyleSheet.create({
   },
   thankYou: {
     ...typography.body,
-    color: colors.text,
+    color: '#4B5563',
     textAlign: 'center',
     fontStyle: 'italic',
+    marginTop: spacing.sm,
   },
   actionButtons: {
     gap: spacing.sm,
@@ -280,7 +323,7 @@ const styles = StyleSheet.create({
     color: colors.surface,
   },
   secondaryButton: {
-    backgroundColor: colors.success,
+    backgroundColor: '#10B981',
   },
   secondaryButtonText: {
     ...typography.bodyBold,
@@ -289,60 +332,11 @@ const styles = StyleSheet.create({
   outlineButton: {
     backgroundColor: 'transparent',
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: '#D1D5DB',
   },
   outlineButtonText: {
     ...typography.bodyBold,
-    color: colors.text,
-  },
-  bottomNav: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: colors.surface,
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    paddingVertical: spacing.sm,
-    paddingBottom: spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-  navItem: {
-    alignItems: 'center',
-    paddingHorizontal: spacing.xs,
-    paddingVertical: spacing.xs,
-  },
-  navIcon: {
-    fontSize: 22,
-  },
-  navLabel: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    marginTop: 2,
-    fontSize: 10,
-  },
-  navNew: {
-    marginTop: -20,
-  },
-  navNewButton: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: colors.primary,
-    shadowOffset: {width: 0, height: 4},
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  navNewIcon: {
-    fontSize: 32,
-    color: colors.surface,
-    fontWeight: '300',
+    color: '#374151',
   },
 });
 

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, {useContext} from 'react';
 import {
   View,
   Text,
@@ -12,13 +12,24 @@ import {useNavigation} from '@react-navigation/native';
 import {colors} from '../theme/colors';
 import {typography} from '../theme/typography';
 import {spacing, borderRadius} from '../theme/spacing';
+import BottomNavigation from '../components/BottomNavigation';
+import {AppContext} from '../data/AppContext';
+import {getCurrentDateFormatted, formatCurrency} from '../data/mockData';
 
 const DashboardScreen = () => {
   const navigation = useNavigation();
+  const {orders} = useContext(AppContext);
 
   const navigateTo = (screen) => {
     navigation.navigate(screen);
   };
+
+  const todaysOrders = orders.filter(
+    (o) => o.orderDate === '5 Sep 2026' || o.orderDate === new Date().toLocaleDateString('en-IN', {day: 'numeric', month: 'short', year: 'numeric'})
+  ).length || 2; // Mock logic for today's orders
+
+  const pendingCount = orders.filter((o) => o.status === 'Pending').length;
+  const readyCount = orders.filter((o) => o.status === 'Ready').length;
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -27,7 +38,7 @@ const DashboardScreen = () => {
       <View style={styles.header}>
         <View>
           <Text style={styles.headerTitle}>Tailor POS</Text>
-          <Text style={styles.headerDate}>Wed, 2 Sep 2026</Text>
+          <Text style={styles.headerDate}>{getCurrentDateFormatted()}</Text>
         </View>
         <View style={styles.headerRight}>
           <View style={styles.avatarPlaceholder}>
@@ -45,19 +56,19 @@ const DashboardScreen = () => {
         <View style={styles.summaryGrid}>
           <View style={styles.summaryCard}>
             <Text style={styles.summaryLabel}>TODAY'S SALES</Text>
-            <Text style={styles.summaryValue}>₦4,100</Text>
+            <Text style={styles.summaryValue}>{formatCurrency(4100)}</Text>
           </View>
           <View style={styles.summaryCard}>
             <Text style={styles.summaryLabel}>TODAY'S ORDERS</Text>
-            <Text style={styles.summaryValue}>2</Text>
+            <Text style={styles.summaryValue}>{todaysOrders}</Text>
           </View>
           <View style={styles.summaryCard}>
             <Text style={styles.summaryLabel}>PENDING</Text>
-            <Text style={[styles.summaryValue, styles.pendingValue]}>2</Text>
+            <Text style={[styles.summaryValue, styles.pendingValue]}>{pendingCount}</Text>
           </View>
           <View style={styles.summaryCard}>
             <Text style={styles.summaryLabel}>READY</Text>
-            <Text style={[styles.summaryValue, styles.readyValue]}>1</Text>
+            <Text style={[styles.summaryValue, styles.readyValue]}>{readyCount}</Text>
           </View>
         </View>
 
@@ -94,7 +105,7 @@ const DashboardScreen = () => {
             style={styles.actionButton} 
             onPress={() => navigateTo('Settings')}>
             <View style={[styles.actionIcon, styles.actionBilling]}>
-              <Text style={styles.actionIconText}>💰</Text>
+              <Text style={styles.actionIconText}>💳</Text>
             </View>
             <Text style={styles.actionLabel}>Billing</Text>
           </TouchableOpacity>
@@ -103,41 +114,14 @@ const DashboardScreen = () => {
         {/* Today's Collection */}
         <View style={styles.collectionCard}>
           <Text style={styles.collectionLabel}>TODAY'S COLLECTION</Text>
-          <Text style={styles.collectionValue}>₦4,100</Text>
+          <Text style={styles.collectionValue}>{formatCurrency(4100)}</Text>
         </View>
 
         {/* Spacer */}
         <View style={{height: 20}} />
       </ScrollView>
 
-      {/* Bottom Navigation */}
-      <View style={styles.bottomNav}>
-        <TouchableOpacity style={[styles.navItem, styles.navActive]}>
-          <Text style={styles.navIcon}>🏠</Text>
-          <Text style={[styles.navLabel, styles.navLabelActive]}>Home</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => navigateTo('Orders')}>
-          <Text style={styles.navIcon}>📋</Text>
-          <Text style={styles.navLabel}>Orders</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.navItem, styles.navNew]} onPress={() => navigateTo('NewOrder')}>
-          <View style={styles.navNewButton}>
-            <Text style={styles.navNewIcon}>+</Text>
-          </View>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => navigateTo('Customers')}>
-          <Text style={styles.navIcon}>👤</Text>
-          <Text style={styles.navLabel}>Customers</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => navigateTo('Settings')}>
-          <Text style={styles.navIcon}>⚙️</Text>
-          <Text style={styles.navLabel}>Settings</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem}>
-          <Text style={styles.navIcon}>✨</Text>
-          <Text style={styles.navLabel}>AI</Text>
-        </TouchableOpacity>
-      </View>
+      <BottomNavigation />
     </SafeAreaView>
   );
 };
@@ -278,64 +262,6 @@ const styles = StyleSheet.create({
     ...typography.h1,
     color: colors.surface,
     marginTop: 2,
-  },
-  bottomNav: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: colors.surface,
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    paddingVertical: spacing.sm,
-    paddingBottom: spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    shadowColor: colors.cardShadow,
-    shadowOffset: {width: 0, height: -2},
-    shadowOpacity: 1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  navItem: {
-    alignItems: 'center',
-    paddingHorizontal: spacing.xs,
-    paddingVertical: spacing.xs,
-  },
-  navIcon: {
-    fontSize: 22,
-  },
-  navLabel: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    marginTop: 2,
-    fontSize: 10,
-  },
-  navLabelActive: {
-    color: colors.primary,
-    fontWeight: '600',
-  },
-  navNew: {
-    marginTop: -20,
-  },
-  navNewButton: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: colors.primary,
-    shadowOffset: {width: 0, height: 4},
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  navNewIcon: {
-    fontSize: 32,
-    color: colors.surface,
-    fontWeight: '300',
   },
 });
 
