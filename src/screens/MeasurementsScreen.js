@@ -1,4 +1,4 @@
-import React, {useState, useContext, useEffect} from 'react';
+import React, {useState, useEffect} from 'react';
 import {
   View,
   Text,
@@ -9,41 +9,72 @@ import {
   StatusBar,
   TextInput,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
-import {useNavigation, useRoute} from '@react-navigation/native';
+import {useNavigation, useRoute, useIsFocused} from '@react-navigation/native';
 import {colors} from '../theme/colors';
 import {typography} from '../theme/typography';
 import {spacing, borderRadius} from '../theme/spacing';
 import BottomNavigation from '../components/BottomNavigation';
-import {AppContext} from '../data/AppContext';
+import {measurementApi} from '../services/api/measurementApi';
+import {customerApi} from '../services/api/customerApi';
 
 const MeasurementsScreen = () => {
   const navigation = useNavigation();
   const route = useRoute();
+  const isFocused = useIsFocused();
   const {customerId} = route.params;
-  const {customers, updateCustomerMeasurements} = useContext(AppContext);
 
-  const customer = customers.find(c => c.id === customerId);
+  const [customer, setCustomer] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   const [activeGarment, setActiveGarment] = useState('Shirt');
   const [measurements, setMeasurements] = useState({
-    chest: '35',
-    waist: '41',
-    shoulder: '39',
-    sleeve: '40',
-    length: '38',
-    neck: '43',
-    hip: '38',
-    thigh: '42',
-    bottom: '36',
-    inseam: '35',
+    chest: '',
+    waist: '',
+    shoulder: '',
+    sleeve: '',
+    length: '',
+    neck: '',
+    hip: '',
+    thigh: '',
+    bottom: '',
+    inseam: '',
   });
 
   useEffect(() => {
-    if (customer && customer.measurements) {
-      setMeasurements(customer.measurements);
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        const custRes = await customerApi.getCustomer(customerId);
+        if (custRes.success) {
+          setCustomer(custRes.data);
+        }
+        const measRes = await measurementApi.getMeasurement(customerId, activeGarment);
+        if (measRes.success && measRes.data) {
+          setMeasurements({
+            chest: measRes.data.chest ? String(measRes.data.chest) : '',
+            waist: measRes.data.waist ? String(measRes.data.waist) : '',
+            shoulder: measRes.data.shoulder ? String(measRes.data.shoulder) : '',
+            sleeve: measRes.data.sleeve ? String(measRes.data.sleeve) : '',
+            length: measRes.data.length ? String(measRes.data.length) : '',
+            neck: measRes.data.neck ? String(measRes.data.neck) : '',
+            hip: measRes.data.hip ? String(measRes.data.hip) : '',
+            thigh: measRes.data.thigh ? String(measRes.data.thigh) : '',
+            bottom: measRes.data.bottom ? String(measRes.data.bottom) : '',
+            inseam: measRes.data.inseam ? String(measRes.data.inseam) : '',
+          });
+        }
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
+    };
+    if (isFocused && customerId) {
+      fetchData();
     }
-  }, [customer]);
+  }, [customerId, isFocused, activeGarment]);
 
   const garmentTypes = ['Shirt', 'Pant', 'Kurta', 'Blouse', 'Suit', 'Other'];
 
@@ -66,30 +97,58 @@ const MeasurementsScreen = () => {
 
   const handleReset = () => {
     setMeasurements({
-      chest: '35',
-      waist: '41',
-      shoulder: '39',
-      sleeve: '40',
-      length: '38',
-      neck: '43',
-      hip: '38',
-      thigh: '42',
-      bottom: '36',
-      inseam: '35',
+      chest: '',
+      waist: '',
+      shoulder: '',
+      sleeve: '',
+      length: '',
+      neck: '',
+      hip: '',
+      thigh: '',
+      bottom: '',
+      inseam: '',
     });
   };
 
-  const handleSave = () => {
-    updateCustomerMeasurements(customerId, measurements);
-    Alert.alert('Success', 'Measurements saved successfully', [
-      {text: 'OK', onPress: () => navigation.goBack()}
-    ]);
+  const handleSave = async () => {
+    try {
+      const data = {
+        garment_type: activeGarment,
+        chest: parseFloat(measurements.chest) || 0,
+        waist: parseFloat(measurements.waist) || 0,
+        shoulder: parseFloat(measurements.shoulder) || 0,
+        sleeve: parseFloat(measurements.sleeve) || 0,
+        length: parseFloat(measurements.length) || 0,
+        neck: parseFloat(measurements.neck) || 0,
+        hip: parseFloat(measurements.hip) || 0,
+        thigh: parseFloat(measurements.thigh) || 0,
+        bottom: parseFloat(measurements.bottom) || 0,
+        inseam: parseFloat(measurements.inseam) || 0,
+      };
+      const res = await measurementApi.saveMeasurement(customerId, data);
+      if (res.success) {
+        Alert.alert('Success', 'Measurements saved successfully', [
+          {text: 'OK', onPress: () => navigation.goBack()}
+        ]);
+      }
+    } catch (e) {
+      console.error(e);
+      Alert.alert('Error', 'Failed to save measurements');
+    }
   };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <ActivityIndicator size="large" color={colors.primary} style={{marginTop: 50}} />
+      </SafeAreaView>
+    );
+  }
 
   if (!customer) {
     return (
       <SafeAreaView style={styles.safeArea}>
-        <Text>Customer not found</Text>
+        <Text style={{textAlign: 'center', marginTop: 50}}>Customer not found</Text>
       </SafeAreaView>
     );
   }

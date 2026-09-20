@@ -1,4 +1,4 @@
-import React, {useContext} from 'react';
+import React, {useState, useEffect, useContext} from 'react';
 import {
   View,
   Text,
@@ -8,28 +8,59 @@ import {
   SafeAreaView,
   StatusBar,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
-import {useNavigation, useRoute} from '@react-navigation/native';
+import {useNavigation, useRoute, useIsFocused} from '@react-navigation/native';
 import {colors} from '../theme/colors';
 import {typography} from '../theme/typography';
 import {spacing, borderRadius} from '../theme/spacing';
 import BottomNavigation from '../components/BottomNavigation';
 import {AppContext} from '../data/AppContext';
 import {formatCurrency} from '../data/mockData';
+import {orderApi} from '../services/api/orderApi';
 
 const OrderDetailScreen = () => {
   const navigation = useNavigation();
   const route = useRoute();
-  const {orders, updateOrderStatus} = useContext(AppContext);
+  const isFocused = useIsFocused();
   
   const paramOrder = route.params?.order;
   const orderId = paramOrder?.id || route.params?.orderId;
-  const order = orders.find((o) => o.id === orderId) || paramOrder;
+
+  const [order, setOrder] = useState(paramOrder || null);
+  const [loading, setLoading] = useState(!paramOrder);
+
+  useEffect(() => {
+    const fetchOrder = async () => {
+      try {
+        setLoading(true);
+        const res = await orderApi.getOrder(orderId);
+        if (res.success) {
+          setOrder(res.data);
+        }
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
+    };
+    if (isFocused && orderId) {
+      fetchOrder();
+    }
+  }, [orderId, isFocused]);
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <ActivityIndicator size="large" color={colors.primary} style={{marginTop: 50}} />
+      </SafeAreaView>
+    );
+  }
 
   if (!order) {
     return (
       <SafeAreaView style={styles.safeArea}>
-        <Text>Order not found</Text>
+        <Text style={{textAlign: 'center', marginTop: 50}}>Order not found</Text>
       </SafeAreaView>
     );
   }
@@ -64,8 +95,16 @@ const OrderDetailScreen = () => {
     }
   };
 
-  const handleMarkReady = () => {
-    updateOrderStatus(order.id, 'Ready');
+  const handleMarkReady = async () => {
+    try {
+      const res = await orderApi.updateOrderStatus(order.id, 'Ready');
+      if (res.success) {
+        setOrder(res.data);
+      }
+    } catch (e) {
+      console.error(e);
+      Alert.alert('Error', 'Failed to update order status');
+    }
   };
 
 

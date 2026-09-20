@@ -1,4 +1,4 @@
-import React, {useState, useContext} from 'react';
+import React, {useState, useEffect} from 'react';
 import {
   View,
   Text,
@@ -6,30 +6,61 @@ import {
   TouchableOpacity,
   SafeAreaView,
   StatusBar,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
-import {useNavigation, useRoute} from '@react-navigation/native';
+import {useNavigation, useRoute, useIsFocused} from '@react-navigation/native';
 import {colors} from '../theme/colors';
 import {typography} from '../theme/typography';
 import {spacing, borderRadius} from '../theme/spacing';
 import BottomNavigation from '../components/BottomNavigation';
-import {AppContext} from '../data/AppContext';
 import {formatCurrency} from '../data/mockData';
+import {paymentApi} from '../services/api/paymentApi';
+import {orderApi} from '../services/api/orderApi';
 
 const PaymentScreen = () => {
   const navigation = useNavigation();
   const route = useRoute();
-  const {orders, addPayment} = useContext(AppContext);
+  const isFocused = useIsFocused();
   
   const paramOrder = route.params?.order;
   const orderId = paramOrder?.id || route.params?.orderId;
-  const order = orders.find((o) => o.id === orderId) || paramOrder;
-
+  
+  const [order, setOrder] = useState(paramOrder || null);
   const [amount, setAmount] = useState('0');
+  const [loading, setLoading] = useState(!paramOrder);
+
+  useEffect(() => {
+    const fetchOrder = async () => {
+      try {
+        setLoading(true);
+        const res = await orderApi.getOrder(orderId);
+        if (res.success) {
+          setOrder(res.data);
+        }
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
+    };
+    if (isFocused && orderId) {
+      fetchOrder();
+    }
+  }, [orderId, isFocused]);
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <ActivityIndicator size="large" color={colors.primary} style={{marginTop: 50}} />
+      </SafeAreaView>
+    );
+  }
 
   if (!order) {
     return (
       <SafeAreaView style={styles.safeArea}>
-        <Text>Order not found</Text>
+        <Text style={{textAlign: 'center', marginTop: 50}}>Order not found</Text>
       </SafeAreaView>
     );
   }
@@ -50,11 +81,22 @@ const PaymentScreen = () => {
     }
   };
 
-  const handleReceivePayment = () => {
+  const handleReceivePayment = async () => {
     const paymentAmount = parseFloat(amount);
     if (paymentAmount > 0 && paymentAmount <= order.balance) {
-      addPayment(order.id, paymentAmount);
-      navigation.navigate('Receipt', {orderId: order.id});
+      try {
+        const res = await paymentApi.createPayment(order.id, {
+          amount: paymentAmount,
+          method: 'Cash',
+          notes: ''
+        });
+        if (res.success) {
+          navigation.navigate('Receipt', {orderId: order.id});
+        }
+      } catch (e) {
+        console.error(e);
+        Alert.alert('Error', 'Failed to record payment');
+      }
     }
   };
 

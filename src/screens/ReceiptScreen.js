@@ -1,4 +1,4 @@
-import React, {useContext} from 'react';
+import React, {useState, useEffect} from 'react';
 import {
   View,
   Text,
@@ -9,60 +9,99 @@ import {
   StatusBar,
   Alert,
   Share,
+  ActivityIndicator,
 } from 'react-native';
-import {useNavigation, useRoute} from '@react-navigation/native';
+import {useNavigation, useRoute, useIsFocused} from '@react-navigation/native';
 import {colors} from '../theme/colors';
 import {typography} from '../theme/typography';
 import {spacing, borderRadius} from '../theme/spacing';
-import {AppContext} from '../data/AppContext';
 import {formatCurrency, getCurrentDateFormatted} from '../data/mockData';
+import {orderApi} from '../services/api/orderApi';
+import {settingsApi} from '../services/api/settingsApi';
 
 const ReceiptScreen = () => {
   const navigation = useNavigation();
   const route = useRoute();
-  const {orders} = useContext(AppContext);
+  const isFocused = useIsFocused();
   const {orderId} = route.params || {};
 
-  const order = orders.find((o) => o.id === orderId);
+  const [order, setOrder] = useState(null);
+  const [shopSettings, setShopSettings] = useState(null);
+  const [loading, setLoading] = useState(!!orderId);
 
-  // If order not found, use mock receipt data as requested
-  const mockReceipt = {
-    receiptNumber: 'RCP-0041',
-    date: '2 Sep 2026, 3:42 PM',
-    customer: 'Rahul Sharma',
-    order: 'TP-0041',
-    shopName: 'Tailor POS',
-    shopAddress: 'Rameevaram Tailor',
-    shopContact: '123 Main Street, Bangalore - 9876543210',
-    items: [
-      {name: 'Shirt x 2', price: 1400},
-      {name: 'Pant x 1', price: 1400},
-    ],
-    total: 2800,
-    paid: 1600,
-    balance: 1200,
-    method: 'Cash',
-    paymentDate: '2 Sep 2026',
-  };
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        const [orderRes, settingsRes] = await Promise.all([
+          orderApi.getOrder(orderId),
+          settingsApi.getShopSettings()
+        ]);
+        
+        if (orderRes.success) {
+          setOrder(orderRes.data);
+        }
+        if (settingsRes.success) {
+          setShopSettings(settingsRes.data);
+        }
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
+    };
+    if (isFocused && orderId) {
+      fetchData();
+    }
+  }, [orderId, isFocused]);
 
-  const receipt = order ? {
-    receiptNumber: `RCP-${order.id.split('-')[1] || Math.floor(Math.random() * 1000)}`,
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <ActivityIndicator size="large" color={colors.primary} style={{marginTop: 50}} />
+      </SafeAreaView>
+    );
+  }
+  
+  const shopName = shopSettings?.shop_name || 'Tailor POS';
+  const shopAddress = shopSettings?.shop_address ? `${shopSettings.shop_address}, ${shopSettings.city || ''}` : 'Rameevaram Tailor';
+  const shopContact = shopSettings?.phone || '123 Main Street, Bangalore - 9876543210';
+
+  if (!order) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={{flex: 1, justifyContent: 'center', alignItems: 'center'}}>
+          <Text style={{fontSize: 16, color: colors.text}}>Unable to load receipt.</Text>
+          <Text style={{fontSize: 14, color: colors.textLight, marginTop: 4}}>Please try again.</Text>
+          <TouchableOpacity 
+            style={[styles.button, {marginTop: 20}]} 
+            onPress={() => navigation.goBack()}
+          >
+            <Text style={styles.buttonText}>Go Back</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  const receipt = {
+    receiptNumber: `RCP-${String(order.id).split('-')[1] || order.id}`,
     date: `${getCurrentDateFormatted()}, ${new Date().toLocaleTimeString('en-IN', {hour: '2-digit', minute: '2-digit'})}`,
     customer: order.customer,
     order: order.id,
-    shopName: 'Tailor POS',
-    shopAddress: 'Rameevaram Tailor',
-    shopContact: '123 Main Street, Bangalore - 9876543210',
+    shopName: shopName,
+    shopAddress: shopAddress,
+    shopContact: shopContact,
     items: Array.isArray(order.items) ? order.items.map(item => ({
-      name: `${item.type || item.name} x ${item.quantity}`,
-      price: item.price * item.quantity || item.amount || 0
-    })) : [{name: order.items, price: order.total}],
-    total: order.total || order.amount || 0,
-    paid: order.paid || 0,
-    balance: order.balance || 0,
-    method: 'Cash',
-    paymentDate: getCurrentDateFormatted(),
-  } : mockReceipt;
+      name: `${item.type || item.garment_type || item.name} x ${item.quantity}`,
+      price: item.price * item.quantity || item.unit_price * item.quantity || item.amount || 0
+    })) : [],
+    total: order.total || 0,
+    paid: order.paid_amount || 0,
+    balance: order.balance_amount || 0,
+    method: (order.payments && order.payments.length > 0) ? order.payments[0].method : 'N/A',
+    paymentDate: (order.payments && order.payments.length > 0) ? new Date(order.payments[0].payment_date).toLocaleDateString('en-IN') : '',
+  };
 
   const handlePrint = () => {
     Alert.alert('Printing', 'Sending to thermal printer...');

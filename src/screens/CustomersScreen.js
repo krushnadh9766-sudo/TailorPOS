@@ -1,4 +1,4 @@
-import React, {useState, useContext} from 'react';
+import React, {useState, useEffect, useContext} from 'react';
 import {
   View,
   Text,
@@ -8,24 +8,42 @@ import {
   SafeAreaView,
   StatusBar,
   TextInput,
+  ActivityIndicator,
 } from 'react-native';
-import {useNavigation} from '@react-navigation/native';
+import {useNavigation, useIsFocused} from '@react-navigation/native';
 import {colors} from '../theme/colors';
 import {typography} from '../theme/typography';
 import {spacing, borderRadius} from '../theme/spacing';
 import BottomNavigation from '../components/BottomNavigation';
-import {AppContext} from '../data/AppContext';
 import {formatCurrency} from '../data/mockData';
+import {customerApi} from '../services/api/customerApi';
 
 const CustomersScreen = () => {
   const navigation = useNavigation();
-  const {customers} = useContext(AppContext);
+  const isFocused = useIsFocused();
+  const [customers, setCustomers] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
 
-  const filteredCustomers = customers.filter((c) =>
-    c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    c.mobile.includes(searchQuery)
-  );
+  const loadCustomers = async () => {
+    try {
+      setLoading(true);
+      const res = await customerApi.getCustomers(searchQuery);
+      if (res.success) {
+        setCustomers(res.data);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isFocused) {
+      loadCustomers();
+    }
+  }, [isFocused, searchQuery]);
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -37,7 +55,7 @@ const CustomersScreen = () => {
         </TouchableOpacity>
         <View style={styles.headerCenter}>
           <Text style={styles.headerTitle}>Customers</Text>
-          <Text style={styles.customerCount}>{filteredCustomers.length} Customers</Text>
+          <Text style={styles.customerCount}>{customers.length} Customers</Text>
         </View>
         <TouchableOpacity style={styles.addButton}>
           <Text style={styles.addButtonText}>+ Add</Text>
@@ -56,25 +74,29 @@ const CustomersScreen = () => {
       </View>
 
       <ScrollView style={styles.list} showsVerticalScrollIndicator={false}>
-        {filteredCustomers.map((customer) => (
-          <TouchableOpacity
-            key={customer.id}
-            style={styles.customerCard}
-            onPress={() => navigation.navigate('CustomerDetail', {customerId: customer.id})}>
-            <View style={styles.customerInfo}>
-              <Text style={styles.customerName}>{customer.name}</Text>
-              <Text style={styles.customerMobile}>{customer.mobile}</Text>
-            </View>
-            <View style={styles.customerStats}>
-              <Text style={styles.orderCount}>{customer.orders} orders</Text>
-              {customer.due > 0 ? (
-                <Text style={styles.dueAmount}>{formatCurrency(customer.due)} due</Text>
-              ) : (
-                <Text style={styles.clearAmount}>Clear</Text>
-              )}
-            </View>
-          </TouchableOpacity>
-        ))}
+        {loading ? (
+          <ActivityIndicator size="large" color={colors.primary} style={{marginTop: 50}} />
+        ) : (
+          customers.map((customer) => (
+            <TouchableOpacity
+              key={customer.id}
+              style={styles.customerCard}
+              onPress={() => navigation.navigate('CustomerDetail', {customerId: customer.id})}>
+              <View style={styles.customerInfo}>
+                <Text style={styles.customerName}>{customer.name}</Text>
+                <Text style={styles.customerMobile}>{customer.mobile}</Text>
+              </View>
+              <View style={styles.customerStats}>
+                <Text style={styles.orderCount}>{customer.orders} orders</Text>
+                {customer.due > 0 ? (
+                  <Text style={styles.dueAmount}>{formatCurrency(customer.due)} due</Text>
+                ) : (
+                  <Text style={styles.clearAmount}>Clear</Text>
+                )}
+              </View>
+            </TouchableOpacity>
+          ))
+        )}
         <View style={{height: 100}} />
       </ScrollView>
 

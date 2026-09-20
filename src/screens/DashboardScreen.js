@@ -1,4 +1,4 @@
-import React, {useContext} from 'react';
+import React, {useState, useEffect} from 'react';
 import {
   View,
   Text,
@@ -7,29 +7,50 @@ import {
   TouchableOpacity,
   SafeAreaView,
   StatusBar,
+  ActivityIndicator,
 } from 'react-native';
-import {useNavigation} from '@react-navigation/native';
+import {useNavigation, useIsFocused} from '@react-navigation/native';
 import {colors} from '../theme/colors';
 import {typography} from '../theme/typography';
 import {spacing, borderRadius} from '../theme/spacing';
 import BottomNavigation from '../components/BottomNavigation';
-import {AppContext} from '../data/AppContext';
 import {getCurrentDateFormatted, formatCurrency} from '../data/mockData';
+import {dashboardApi} from '../services/api/dashboardApi';
 
 const DashboardScreen = () => {
   const navigation = useNavigation();
-  const {orders} = useContext(AppContext);
+  const isFocused = useIsFocused();
+  const [stats, setStats] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   const navigateTo = (screen) => {
     navigation.navigate(screen);
   };
 
-  const todaysOrders = orders.filter(
-    (o) => o.orderDate === '5 Sep 2026' || o.orderDate === new Date().toLocaleDateString('en-IN', {day: 'numeric', month: 'short', year: 'numeric'})
-  ).length || 2; // Mock logic for today's orders
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        setLoading(true);
+        const res = await dashboardApi.getStats();
+        if (res.success) {
+          setStats(res.data);
+        }
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
+    };
+    if (isFocused) {
+      fetchStats();
+    }
+  }, [isFocused]);
 
-  const pendingCount = orders.filter((o) => o.status === 'Pending').length;
-  const readyCount = orders.filter((o) => o.status === 'Ready').length;
+  const todaysOrders = stats?.today_orders || 0;
+  const todaysSales = stats?.today_sales || 0;
+  const pendingCount = stats?.pending_orders || 0;
+  const readyCount = stats?.ready_orders || 0;
+  const todaysCollection = stats?.today_collection || 0;
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -52,25 +73,28 @@ const DashboardScreen = () => {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}>
         
-        {/* Summary Cards */}
-        <View style={styles.summaryGrid}>
-          <View style={styles.summaryCard}>
-            <Text style={styles.summaryLabel}>TODAY'S SALES</Text>
-            <Text style={styles.summaryValue}>{formatCurrency(4100)}</Text>
+        {loading ? (
+          <ActivityIndicator size="large" color={colors.primary} style={{marginTop: 50, marginBottom: 50}} />
+        ) : (
+          <View style={styles.summaryGrid}>
+            <View style={styles.summaryCard}>
+              <Text style={styles.summaryLabel}>TODAY'S SALES</Text>
+              <Text style={styles.summaryValue}>{formatCurrency(todaysSales)}</Text>
+            </View>
+            <View style={styles.summaryCard}>
+              <Text style={styles.summaryLabel}>TODAY'S ORDERS</Text>
+              <Text style={styles.summaryValue}>{todaysOrders}</Text>
+            </View>
+            <View style={styles.summaryCard}>
+              <Text style={styles.summaryLabel}>PENDING</Text>
+              <Text style={[styles.summaryValue, styles.pendingValue]}>{pendingCount}</Text>
+            </View>
+            <View style={styles.summaryCard}>
+              <Text style={styles.summaryLabel}>READY</Text>
+              <Text style={[styles.summaryValue, styles.readyValue]}>{readyCount}</Text>
+            </View>
           </View>
-          <View style={styles.summaryCard}>
-            <Text style={styles.summaryLabel}>TODAY'S ORDERS</Text>
-            <Text style={styles.summaryValue}>{todaysOrders}</Text>
-          </View>
-          <View style={styles.summaryCard}>
-            <Text style={styles.summaryLabel}>PENDING</Text>
-            <Text style={[styles.summaryValue, styles.pendingValue]}>{pendingCount}</Text>
-          </View>
-          <View style={styles.summaryCard}>
-            <Text style={styles.summaryLabel}>READY</Text>
-            <Text style={[styles.summaryValue, styles.readyValue]}>{readyCount}</Text>
-          </View>
-        </View>
+        )}
 
         {/* Quick Actions */}
         <View style={styles.quickActions}>
@@ -114,7 +138,7 @@ const DashboardScreen = () => {
         {/* Today's Collection */}
         <View style={styles.collectionCard}>
           <Text style={styles.collectionLabel}>TODAY'S COLLECTION</Text>
-          <Text style={styles.collectionValue}>{formatCurrency(4100)}</Text>
+          <Text style={styles.collectionValue}>{formatCurrency(todaysCollection)}</Text>
         </View>
 
         {/* Spacer */}

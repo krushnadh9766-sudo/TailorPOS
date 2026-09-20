@@ -1,4 +1,4 @@
-import React, {useState, useContext} from 'react';
+import React, {useState, useEffect} from 'react';
 import {
   View,
   Text,
@@ -10,22 +10,40 @@ import {
   TextInput,
   Alert,
 } from 'react-native';
-import {useNavigation} from '@react-navigation/native';
+import {useNavigation, useIsFocused} from '@react-navigation/native';
 import {colors} from '../theme/colors';
 import {typography} from '../theme/typography';
 import {spacing, borderRadius} from '../theme/spacing';
 import BottomNavigation from '../components/BottomNavigation';
-import {AppContext} from '../data/AppContext';
 import {getCurrentDateFormatted, formatCurrency} from '../data/mockData';
+import {customerApi} from '../services/api/customerApi';
+import {orderApi} from '../services/api/orderApi';
 
 const NewOrderScreen = () => {
   const navigation = useNavigation();
-  const {customers, addOrder, orders} = useContext(AppContext);
+  const isFocused = useIsFocused();
   const [step, setStep] = useState(1);
 
   // Step 1: Customer
   const [searchQuery, setSearchQuery] = useState('');
+  const [customers, setCustomers] = useState([]);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
+
+  useEffect(() => {
+    const fetchCustomers = async () => {
+      try {
+        const res = await customerApi.getCustomers(searchQuery);
+        if (res.success) {
+          setCustomers(res.data);
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    };
+    if (isFocused && step === 1) {
+      fetchCustomers();
+    }
+  }, [isFocused, searchQuery, step]);
 
   // Step 2: Garments
   const [garments, setGarments] = useState([]);
@@ -45,16 +63,15 @@ const NewOrderScreen = () => {
 
   const garmentTypes = ['Shirt', 'Pant', 'Kurta', 'Blouse', 'Suit', 'Other'];
 
-  const filteredCustomers = customers.filter((c) =>
-    c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    c.mobile.includes(searchQuery)
-  );
-
   const addGarment = () => {
     if (currentGarment.price && currentGarment.quantity) {
       setGarments([...garments, {
-        ...currentGarment,
-        amount: parseInt(currentGarment.price) * parseInt(currentGarment.quantity),
+        garment_type: currentGarment.type,
+        type: currentGarment.type, // UI uses type
+        quantity: parseInt(currentGarment.quantity),
+        unit_price: parseFloat(currentGarment.price),
+        price: parseFloat(currentGarment.price), // UI uses price
+        amount: parseInt(currentGarment.quantity) * parseFloat(currentGarment.price),
       }]);
       setCurrentGarment({type: 'Shirt', quantity: '1', price: ''});
     }
@@ -76,8 +93,8 @@ const NewOrderScreen = () => {
   };
 
   const recalculateTotal = (extra, disc) => {
-    const e = parseInt(extra) || 0;
-    const d = parseInt(disc) || 0;
+    const e = parseFloat(extra) || 0;
+    const d = parseFloat(disc) || 0;
     setSummary(prev => ({
       ...prev,
       extraCharges: e,
@@ -86,32 +103,35 @@ const NewOrderScreen = () => {
     }));
   };
 
-  const handleSave = (print) => {
-    const newId = `TP-00${41 + orders.length}`;
-    
-    const newOrder = {
-      id: newId,
-      customer: selectedCustomer.name,
-      customerMobile: selectedCustomer.mobile,
-      items: garments,
-      total: summary.total,
-      paid: 0,
-      balance: summary.total,
-      dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString('en-IN', {day: 'numeric', month: 'short', year: 'numeric'}),
-      orderDate: new Date().toLocaleDateString('en-IN', {day: 'numeric', month: 'short', year: 'numeric'}),
-      status: 'Pending'
-    };
-    
-    addOrder(newOrder);
-    
-    if (print) {
-      Alert.alert('Success', 'Order saved and preparing receipt...', [
-        {text: 'OK', onPress: () => navigation.navigate('Receipt', {orderId: newId})}
-      ]);
-    } else {
-      Alert.alert('Success', 'Order saved successfully', [
-        {text: 'OK', onPress: () => navigation.navigate('Orders')}
-      ]);
+  const handleSave = async (print) => {
+    try {
+      const orderData = {
+        customer_id: selectedCustomer.id,
+        extra_charges: summary.extraCharges,
+        discount: summary.discount,
+        items: garments.map(g => ({
+          garment_type: g.garment_type,
+          quantity: g.quantity,
+          unit_price: g.unit_price,
+        }))
+      };
+      
+      const res = await orderApi.createOrder(orderData);
+      
+      if (res.success) {
+        if (print) {
+          Alert.alert('Success', 'Order saved and preparing receipt...', [
+            {text: 'OK', onPress: () => navigation.navigate('Receipt', {orderId: res.data.id})}
+          ]);
+        } else {
+          Alert.alert('Success', 'Order saved successfully', [
+            {text: 'OK', onPress: () => navigation.navigate('Orders')}
+          ]);
+        }
+      }
+    } catch (e) {
+      console.error(e);
+      Alert.alert('Error', 'Failed to save order');
     }
   };
 
@@ -132,7 +152,7 @@ const NewOrderScreen = () => {
         <Text style={styles.addCustomerText}>+ Add New Customer</Text>
       </TouchableOpacity>
       <ScrollView style={styles.customerList}>
-        {filteredCustomers.map((customer) => (
+        {customers.map((customer) => (
           <TouchableOpacity
             key={customer.id}
             style={[

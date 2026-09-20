@@ -1,4 +1,4 @@
-import React, {useState, useContext} from 'react';
+import React, {useState, useEffect, useContext} from 'react';
 import {
   View,
   Text,
@@ -7,46 +7,82 @@ import {
   TouchableOpacity,
   SafeAreaView,
   StatusBar,
+  ActivityIndicator,
 } from 'react-native';
-import {useNavigation, useRoute} from '@react-navigation/native';
+import {useNavigation, useRoute, useIsFocused} from '@react-navigation/native';
 import {colors} from '../theme/colors';
 import {typography} from '../theme/typography';
 import {spacing, borderRadius} from '../theme/spacing';
 import BottomNavigation from '../components/BottomNavigation';
 import {AppContext} from '../data/AppContext';
 import {formatCurrency} from '../data/mockData';
+import {customerApi} from '../services/api/customerApi';
+import {orderApi} from '../services/api/orderApi';
 
 const CustomerDetailScreen = () => {
   const navigation = useNavigation();
   const route = useRoute();
+  const isFocused = useIsFocused();
   const {customerId} = route.params;
-  const {customers, orders} = useContext(AppContext);
 
   const [activeTab, setActiveTab] = useState('orders');
+  const [customer, setCustomer] = useState(null);
+  const [customerOrders, setCustomerOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const customer = customers.find(c => c.id === customerId);
+  useEffect(() => {
+    const fetchCustomer = async () => {
+      try {
+        setLoading(true);
+        const res = await customerApi.getCustomer(customerId);
+        if (res.success) {
+          setCustomer(res.data);
+          // Fetch orders for this customer
+          const ordersRes = await orderApi.getOrders('All', res.data.name);
+          if (ordersRes.success) {
+            // Filter strictly by exact name to be safe
+            const exactOrders = ordersRes.data.filter(o => o.customer === res.data.name);
+            setCustomerOrders(exactOrders);
+          }
+        }
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
+    };
+    if (isFocused) {
+      fetchCustomer();
+    }
+  }, [customerId, isFocused]);
 
-  if (!customer) {
+  if (loading) {
     return (
       <SafeAreaView style={styles.safeArea}>
-        <Text>Customer not found</Text>
+        <ActivityIndicator size="large" color={colors.primary} style={{marginTop: 50}} />
       </SafeAreaView>
     );
   }
 
-  const customerOrders = orders.filter(o => o.customer === customer.name);
+  if (!customer) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <Text style={{textAlign: 'center', marginTop: 50}}>Customer not found</Text>
+      </SafeAreaView>
+    );
+  }
 
   const measurements = customer.measurements || {
-    chest: '39"',
-    waist: '38"',
-    shoulder: '39"',
-    sleeve: '40"',
-    length: '39"',
-    neck: '34"',
-    hip: '40"',
-    thigh: '42"',
-    bottom: '40"',
-    inseam: '38"',
+    chest: '',
+    waist: '',
+    shoulder: '',
+    sleeve: '',
+    length: '',
+    neck: '',
+    hip: '',
+    thigh: '',
+    bottom: '',
+    inseam: '',
   };
 
   const getStatusColor = (status) => {
@@ -180,12 +216,6 @@ const CustomerDetailScreen = () => {
           onPress={() => navigation.navigate('Measurements', {customerId: customer.id})}>
           <Text style={styles.actionIcon}>📐</Text>
           <Text style={styles.actionLabel}>Measure</Text>
-        </TouchableOpacity>
-        <TouchableOpacity 
-          style={[styles.bottomAction, styles.newOrderAction]}
-          onPress={() => navigation.navigate('NewOrder')}>
-          <Text style={[styles.actionIcon, {color: colors.surface}]}>+</Text>
-          <Text style={[styles.actionLabel, {color: colors.surface}]}>New Order</Text>
         </TouchableOpacity>
       </View>
 
@@ -393,19 +423,16 @@ const styles = StyleSheet.create({
   },
   bottomActions: {
     position: 'absolute',
-    bottom: 80,
-    left: 0,
-    right: 0,
+    bottom: 90,
+    right: 20,
     flexDirection: 'row',
-    justifyContent: 'space-around',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
+    justifyContent: 'flex-end',
     backgroundColor: 'transparent',
   },
   bottomAction: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: spacing.sm,
+    paddingVertical: spacing.md,
     paddingHorizontal: spacing.lg,
     borderRadius: borderRadius.full,
     shadowColor: colors.cardShadow,
@@ -415,20 +442,17 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   measureAction: {
-    backgroundColor: colors.surface,
-  },
-  newOrderAction: {
     backgroundColor: colors.primary,
   },
   actionIcon: {
-    fontSize: 18,
+    fontSize: 20,
     marginRight: spacing.xs,
-    color: colors.text,
+    color: colors.surface,
   },
   actionLabel: {
-    ...typography.bodySmall,
+    ...typography.body,
     fontWeight: '600',
-    color: colors.text,
+    color: colors.surface,
   },
   bottomNavContainer: {
     position: 'absolute',

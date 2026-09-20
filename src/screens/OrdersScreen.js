@@ -1,4 +1,4 @@
-import React, {useState, useContext} from 'react';
+import React, {useState, useEffect, useContext} from 'react';
 import {
   View,
   Text,
@@ -8,30 +8,43 @@ import {
   SafeAreaView,
   StatusBar,
   TextInput,
+  ActivityIndicator,
 } from 'react-native';
-import {useNavigation} from '@react-navigation/native';
+import {useNavigation, useIsFocused} from '@react-navigation/native';
 import {colors} from '../theme/colors';
 import {typography} from '../theme/typography';
 import {spacing, borderRadius} from '../theme/spacing';
 import BottomNavigation from '../components/BottomNavigation';
 import OrderCard from '../components/OrderCard';
-import {AppContext} from '../data/AppContext';
+import {orderApi} from '../services/api/orderApi';
 
 const OrdersScreen = () => {
   const navigation = useNavigation();
-  const {orders} = useContext(AppContext);
+  const isFocused = useIsFocused();
   const [activeTab, setActiveTab] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const filteredOrders = orders.filter((order) => {
-    const matchesTab = activeTab === 'All' || order.status === activeTab;
-    const searchString = searchQuery.toLowerCase();
-    const matchesSearch =
-      order.id.toLowerCase().includes(searchString) ||
-      order.customer.toLowerCase().includes(searchString) ||
-      (order.customerMobile && order.customerMobile.includes(searchString));
-    return matchesTab && matchesSearch;
-  });
+  const loadOrders = async () => {
+    try {
+      setLoading(true);
+      const res = await orderApi.getOrders(activeTab, searchQuery);
+      if (res.success) {
+        setOrders(res.data);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isFocused) {
+      loadOrders();
+    }
+  }, [isFocused, activeTab, searchQuery]);
 
   const tabs = ['All', 'Pending', 'In Progress', 'Ready', 'Delivered'];
 
@@ -45,7 +58,7 @@ const OrdersScreen = () => {
         </TouchableOpacity>
         <View style={styles.headerCenter}>
           <Text style={styles.headerTitle}>Orders</Text>
-          <Text style={styles.orderCount}>{filteredOrders.length} Orders</Text>
+          <Text style={styles.orderCount}>{orders.length} Orders</Text>
         </View>
         <TouchableOpacity style={styles.newButton} onPress={() => navigation.navigate('NewOrder')}>
           <Text style={styles.newButtonText}>+ New</Text>
@@ -81,16 +94,18 @@ const OrdersScreen = () => {
       </ScrollView>
 
       <ScrollView style={styles.ordersList} showsVerticalScrollIndicator={false}>
-        {filteredOrders.length === 0 ? (
+        {loading ? (
+          <ActivityIndicator size="large" color={colors.primary} style={{marginTop: 50}} />
+        ) : orders.length === 0 ? (
           <View style={styles.emptyState}>
             <Text style={styles.emptyText}>No orders found</Text>
           </View>
         ) : (
-          filteredOrders.map((order) => (
+          orders.map((order) => (
             <OrderCard 
               key={order.id} 
               order={order} 
-              onPress={() => navigation.navigate('OrderDetail', {order})} 
+              onPress={() => navigation.navigate('OrderDetail', {orderId: order.id})} 
             />
           ))
         )}
